@@ -2,6 +2,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Setting;
 
 class Bed extends Model
 {
@@ -11,10 +12,14 @@ class Bed extends Model
     public function room() { return $this->belongsTo(Room::class); }
     public function tenant() { return $this->hasOne(User::class); }
 
-    /** Effective monthly rate: bed override, else the room rate. */
+    /** Effective monthly rate: bed override, bunk-specific setting, then default rent. */
     public function getRateAttribute(): float
     {
-        return (float) ($this->monthly_rate ?? $this->room->monthly_rate);
+        if ($this->monthly_rate !== null) return (float) $this->monthly_rate;
+        $key = $this->bunk === 'A' ? 'rent.top_bunk_rate' : 'rent.bottom_bunk_rate';
+        $bunkRate = Setting::get($key);
+        if ($bunkRate !== null && $bunkRate !== '') return (float) $bunkRate;
+        return (float) Setting::get('rent.default_monthly_rate', 1500);
     }
     public function getFullNameAttribute(): string
     {

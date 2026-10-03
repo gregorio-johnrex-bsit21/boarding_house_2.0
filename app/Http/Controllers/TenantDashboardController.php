@@ -1,7 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Models\{MaintenanceRequest, Payment, Setting, User};
+use App\Models\{MaintenanceRequest, Payment, User};
 use App\Support\Billing;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -18,7 +18,14 @@ class TenantDashboardController extends Controller
 
         return view('tenant.home', [
             'user' => $user, 'bed' => $user->bed, 'billing' => Billing::cycle($user), 'roommates' => $roommates,
-            'statuses' => \App\Models\Bed::pluck('status', 'mesh_id'),
+        ]);
+    }
+
+    public function map(Request $r)
+    {
+        $user = $r->user()->load('bed.room');
+        return view('tenant.map', [
+            'bed' => $user->bed,
         ]);
     }
 
@@ -26,31 +33,9 @@ class TenantDashboardController extends Controller
     {
         $user = $r->user()->load('bed.room');
         return view('tenant.billing', [
-            'user' => $user, 'billing' => Billing::cycle($user),
+            'user' => $user,
             'payments' => $user->payments()->latest()->get(),
-            'gcash' => ['number' => Setting::get('gcash_number'), 'name' => Setting::get('gcash_name'), 'qr' => Setting::get('gcash_qr')],
         ]);
-    }
-
-    public function storePayment(Request $r)
-    {
-        $user = $r->user()->load('bed.room');
-        abort_unless($user->bed, 422, 'You have no bed assigned yet.');
-        $c = Billing::cycle($user);
-        if ($c['status'] === 'paid') return back()->withErrors(['amount' => 'This month is already paid.']);
-
-        $data = $r->validate([
-            'amount' => 'required|numeric|min:1|max:100000',
-            'gcash_reference' => 'required|string|max:30|unique:payments,gcash_reference',
-            'receipt' => 'required|image|max:4096',
-        ], ['gcash_reference.unique' => 'That reference number was already submitted.']);
-
-        Payment::create([
-            'user_id' => $user->id, 'bed_id' => $user->bed_id, 'period' => $c['period'], 'amount' => $data['amount'],
-            'payment_method' => 'gcash', 'gcash_reference' => $data['gcash_reference'],
-            'receipt_image' => $r->file('receipt')->store('receipts', 'public'), 'status' => 'pending',
-        ]);
-        return redirect()->route('tenant.billing')->with('status', 'Payment submitted. Your landlord will verify it soon.');
     }
 
     public function maintenance(Request $r)

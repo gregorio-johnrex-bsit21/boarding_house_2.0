@@ -9,7 +9,11 @@
 <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 <script src="{{ asset('js/bh-map-bridge.js') }}"></script>
-<style>[x-cloak]{display:none!important}</style>
+<style>
+  [x-cloak]{display:none!important}
+  body{background:#f3f5f8}
+  .rounded-2xl.bg-white{border:1px solid #e1e6ed;box-shadow:0 3px 10px rgba(15,23,42,.045)}
+</style>
 </head>
 <body class="h-full text-slate-800 antialiased">
 @yield('body')

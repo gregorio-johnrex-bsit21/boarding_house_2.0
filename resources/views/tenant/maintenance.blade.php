@@ -1,7 +1,10 @@
 @extends('layouts.tenant')
 @section('title','Repairs · BoardersHub')
 @section('content')
-<p class="font-bold">My reports</p>
+<div class="flex items-center justify-between gap-3">
+  <div><h1 class="font-bold text-slate-900">Repair requests</h1><p class="text-sm text-slate-500">Track your reports and their progress.</p></div>
+  <button type="button" @click="report=true" class="shrink-0 rounded-xl bg-indigo-600 px-3 py-2.5 text-sm font-semibold text-white">Report issue</button>
+</div>
 @forelse($requests as $m)
   <article class="rounded-2xl bg-white p-4 shadow-sm">
     <div class="flex items-start justify-between gap-2">
@@ -16,6 +19,6 @@
     <div class="mt-1 flex justify-between text-[10px] text-slate-400"><span>Sent</span><span>In progress</span><span>Fixed</span></div>
   </article>
 @empty
-  <div class="rounded-2xl bg-white p-6 text-center text-sm text-slate-500">No reports yet. Tap the 🛠️ button to report a problem.</div>
+  <div class="rounded-2xl bg-white p-6 text-center text-sm text-slate-500">No repair requests yet. Use “Report issue” to tell your landlord about a problem.</div>
 @endforelse
 @endsection

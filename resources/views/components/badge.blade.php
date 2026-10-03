@@ -1,14 +1,15 @@
 @props(['status'])
 @php
 $m = [
- 'paid'=>['Paid','bg-emerald-100 text-emerald-700'],'verified'=>['Verified','bg-emerald-100 text-emerald-700'],
- 'resolved'=>['Resolved','bg-emerald-100 text-emerald-700'],'available'=>['Available','bg-emerald-100 text-emerald-700'],
- 'pending'=>['Pending','bg-amber-100 text-amber-700'],'due_soon'=>['Due soon','bg-orange-100 text-orange-700'],
- 'ready'=>['Ready','bg-yellow-100 text-yellow-700'],'overdue'=>['Overdue','bg-rose-100 text-rose-700'],
- 'rejected'=>['Rejected','bg-rose-100 text-rose-700'],'occupied'=>['Occupied','bg-rose-100 text-rose-700'],
- 'in_progress'=>['In progress','bg-sky-100 text-sky-700'],'reserved'=>['Reserved','bg-blue-100 text-blue-700'],
- 'unpaid'=>['Unpaid','bg-slate-100 text-slate-600'],
+ 'paid'=>['Paid','bg-emerald-700 text-white'],'partial'=>['Partially paid','bg-blue-700 text-white'],'verified'=>['Verified','bg-emerald-700 text-white'],
+ 'resolved'=>['Resolved','bg-emerald-700 text-white'],'available'=>['Available','bg-emerald-700 text-white'],
+ 'pending'=>['Pending','bg-transparent text-slate-900 italic shadow-none'],'due_soon'=>['Due soon','bg-transparent text-rose-600 shadow-none'],
+ 'due'=>['Due','bg-rose-700 text-white'],
+ 'ready'=>['Ready','bg-yellow-600 text-white'],'overdue'=>['Overdue','bg-rose-700 text-white'],
+ 'rejected'=>['Rejected','bg-rose-700 text-white'],'occupied'=>['Occupied','bg-rose-700 text-white'],
+ 'in_progress'=>['In progress','bg-sky-700 text-white'],'reserved'=>['Reserved','bg-blue-700 text-white'],
+ 'unpaid'=>['Unpaid','bg-transparent text-slate-900 shadow-none'],
 ];
 [$label,$cls] = $m[$status] ?? [ucfirst($status),'bg-slate-100 text-slate-600'];
 @endphp
-<span {{ $attributes->merge(['class'=>"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold $cls"]) }}>{{ $label }}</span>
+<span {{ $attributes->merge(['class'=>"inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold tracking-wide shadow-sm $cls"]) }}>{{ $label }}</span>

@@ -19,4 +19,18 @@ class Setting extends Model
     {
         static::updateOrCreate(['key' => $key], ['value' => $value]);
     }
+
+    public static function getJson(string $key, array $default = []): array
+    {
+        $value = static::get($key);
+        if (is_array($value)) return $value;
+        if (!is_string($value) || trim($value) === '') return $default;
+        $decoded = json_decode($value, true);
+        return is_array($decoded) ? $decoded : $default;
+    }
+
+    public static function putJson(string $key, array $value): void
+    {
+        static::put($key, json_encode($value, JSON_UNESCAPED_UNICODE));
+    }
 }

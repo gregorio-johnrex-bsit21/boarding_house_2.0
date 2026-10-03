@@ -39,7 +39,7 @@
   {{-- ============ MAP (Full-width edge-to-edge canvas) ============ --}}
   <section x-show="tab==='map'" class="-mx-4 -mt-4 sm:mx-0 sm:mt-0">
     <div class="h-[calc(100vh-8.5rem)] md:h-[calc(100vh-6rem)] w-full overflow-hidden rounded-none sm:rounded-2xl bg-slate-100 touch-none">
-      <iframe x-ref="map" src="{{ asset('map/boarding_house_map.html') }}?embed=1&mode=admin&theme=light" class="h-full w-full border-0 block" title="3D map"></iframe>
+      <iframe x-ref="map" src="{{ asset('map/boarding_house_map.html') }}?embed=1&mode=admin&theme=light" class="h-full w-full border-0 block" title="3D map" allow="fullscreen" allowfullscreen></iframe>
     </div>
   </section>
 
@@ -48,7 +48,7 @@
     {{-- Search Bar --}}
     <form method="GET" action="{{ route('admin.dashboard') }}#tenants" class="flex items-center gap-2">
       <input name="q" value="{{ $q }}" placeholder="Search name, room, email…" class="min-w-0 flex-1 rounded-xl border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
-      @if($filter)<input type="hidden" name="filter" value="{{ $filter }}">@endif
+      @if($roomFilter)<input type="hidden" name="room" value="{{ $roomFilter }}">@endif
       <button class="flex items-center gap-1.5 rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         <span>Search</span>
@@ -68,39 +68,52 @@
       @endforeach
     </div>
 
-    {{-- Filters & Compact Add Tenant Button --}}
-    <div class="flex w-full items-center justify-between gap-1.5">
-      <div class="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1 overflow-x-auto no-scrollbar">
-        @foreach([''=>'All','due_soon'=>'Due soon','paid'=>'Paid','overdue'=>'Overdue'] as $f=>$l)
-          <a href="{{ route('admin.dashboard',array_filter(['filter'=>$f,'q'=>$q])) }}#tenants" class="whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition shrink-0 {{ ($filter ?? '')===$f ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 shadow-sm' }}">{{ $l }}</a>
-        @endforeach
-      </div>
-
-      {{-- Compact '+' Button on Mobile, Full Label on Desktop --}}
+    {{-- Compact room dropdown and Add Tenant --}}
+    <div class="flex w-full items-center justify-between gap-2">
+      <form method="GET" action="{{ route('admin.dashboard') }}#tenants" class="min-w-0">
+        <input type="hidden" name="q" value="{{ $q }}">
+        <label for="tenant-room-filter" class="sr-only">Filter by room</label>
+        <select id="tenant-room-filter" name="room" onchange="this.form.submit()" class="w-32 max-w-full rounded-xl border-slate-300 bg-white text-sm focus:border-indigo-500 focus:ring-indigo-500 sm:w-40">
+          <option value="">All rooms</option>
+          @foreach(range(1, 17) as $roomNumber)
+            <option value="{{ $roomNumber }}" @selected((string) $roomFilter === (string) $roomNumber)>Room {{ $roomNumber }}</option>
+          @endforeach
+        </select>
+      </form>
       <button @click="addTenantModal = true" class="shrink-0 flex items-center justify-center h-8 w-8 sm:h-auto sm:w-auto sm:px-3.5 sm:py-1.5 rounded-full bg-indigo-600 text-white shadow-sm hover:bg-indigo-500 transition" title="Add Tenant">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
         <span class="hidden sm:inline sm:ml-1.5 text-xs font-semibold">Add tenant</span>
       </button>
     </div>
 
-    {{-- Tenant list --}}
-    <div class="divide-y divide-slate-100 rounded-2xl bg-white shadow-sm">
-      @forelse($tenants as $x) @php $u=$x['user']; $b=$x['billing']; @endphp
-        <div class="flex flex-wrap items-center gap-3 p-4 hover:bg-slate-50/50 transition">
-          <div class="min-w-0 flex-1">
-            <p class="truncate font-semibold text-slate-900">{{ $u->name }}</p>
-            <p class="truncate text-xs text-slate-500">{{ $u->bed?->full_name ?? 'No bed assigned' }}@if($u->phone) · {{ $u->phone }}@endif</p>
+    <p class="text-xs font-medium text-slate-500">{{ $tenants->count() }} {{ \Illuminate\Support\Str::plural('resident', $tenants->count()) }}{{ $roomFilter ? ' in Room '.$roomFilter : '' }}</p>
+
+    {{-- Occupied tenant roster --}}
+    <div class="space-y-3">
+      @forelse($tenants as $x) @php $u=$x['user']; @endphp
+        <div x-data="{detailOpen:false}" class="rounded-2xl bg-white p-4 shadow-sm">
+          <div class="min-w-0">
+            <p class="break-words font-semibold text-slate-900">{{ $u->name }}</p>
+            <p class="break-words text-xs text-slate-500">{{ $u->bed?->full_name ?? 'No bed assigned' }}@if($u->phone) · {{ $u->phone }}@endif</p>
           </div>
-          <div class="text-right text-xs text-slate-500">Due {{ $b['due']->format('M j') }}<br><b class="text-sm text-slate-800">₱{{ number_format($b['amount']) }}</b></div>
-          <x-badge :status="$b['status']"/>
-          @if($u->bed && $b['status']!=='paid')
-            <form method="POST" action="{{ route('admin.tenants.cash',$u) }}" onsubmit="return confirm('Mark ₱{{ number_format($b['amount']) }} cash received from {{ addslashes($u->name) }}?')">@csrf
-              <button class="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
-                <svg class="h-3.5 w-3.5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                Cash paid
-              </button>
-            </form>
-          @endif
+          <div class="mt-3 flex justify-end border-t border-slate-100 pt-3">
+            <button type="button" @click="detailOpen=true" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">View profile</button>
+          </div>
+          <x-detail-modal title="Resident profile">
+            <div class="mb-5 flex items-center gap-4">
+              <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-400" aria-label="No profile photo">
+                <svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.1a7.5 7.5 0 0115 0A17.9 17.9 0 0112 22.5a17.9 17.9 0 01-7.5-2.4z"/></svg>
+              </div>
+              <div class="min-w-0"><h4 class="break-words text-lg font-bold text-slate-900">{{ $u->name }}</h4><p class="break-all text-sm text-slate-500">{{ $u->email }}</p></div>
+            </div>
+            <dl class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><dt class="text-xs font-medium text-slate-500">Room</dt><dd class="mt-1 font-semibold text-slate-900">{{ $u->bed?->room?->number ?? '—' }}</dd></div>
+              <div><dt class="text-xs font-medium text-slate-500">Bed number</dt><dd class="mt-1 font-semibold text-slate-900">{{ $u->bed?->bed_no ? 'Bed '.$u->bed->bed_no : '—' }}</dd></div>
+              <div><dt class="text-xs font-medium text-slate-500">Bunk position</dt><dd class="mt-1 font-semibold text-slate-900">{{ $u->bed?->bunk === 'A' ? 'Top bunk' : ($u->bed?->bunk === 'B' ? 'Bottom bunk' : '—') }}</dd></div>
+              <div><dt class="text-xs font-medium text-slate-500">Phone</dt><dd class="mt-1 break-words font-semibold text-slate-900">{{ $u->phone ?: '—' }}</dd></div>
+              <div><dt class="text-xs font-medium text-slate-500">Move-in date</dt><dd class="mt-1 font-semibold text-slate-900">{{ $u->move_in_date?->format('M j, Y') ?? '—' }}</dd></div>
+            </dl>
+          </x-detail-modal>
         </div>
       @empty 
         <p class="p-8 text-center text-sm text-slate-500">No tenants match.</p> 
@@ -109,51 +122,103 @@
   </section>
 
   {{-- ============ PAYMENTS ============ --}}
-  <section x-show="tab==='payments'" x-cloak class="space-y-3">
-    @forelse($payments as $p)
-      <article class="flex flex-wrap items-center gap-3 rounded-2xl bg-white p-4 shadow-sm">
-        @if($p->receipt_image)
-          <a href="{{ asset('storage/'.$p->receipt_image) }}" target="_blank"><img src="{{ asset('storage/'.$p->receipt_image) }}" class="h-16 w-16 rounded-lg object-cover border" alt="Receipt"></a>
-        @endif
-        <div class="min-w-0 flex-1">
-          <p class="font-semibold text-slate-900">{{ $p->user->name }} · ₱{{ number_format($p->amount) }}</p>
-          <p class="text-xs text-slate-500">{{ $p->user->bed?->full_name }} · {{ $p->period->format('F Y') }} · {{ strtoupper($p->payment_method) }}@if($p->gcash_reference) · Ref {{ $p->gcash_reference }}@endif</p>
-        </div>
-        <x-badge :status="$p->status"/>
-        @if($p->status==='pending')
-          <div class="flex gap-2">
-            <form method="POST" action="{{ route('admin.payments.reject',$p) }}">@csrf<button class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50">Reject</button></form>
-            <form method="POST" action="{{ route('admin.payments.verify',$p) }}">@csrf<button class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Verify</button></form>
+  <section x-show="tab==='payments'" x-cloak class="space-y-4">
+    <div class="flex min-w-0 gap-2 overflow-x-auto no-scrollbar pb-1">
+      @foreach(['all' => 'All residents', 'paid' => 'Paid', 'pending' => 'Pending', 'due' => 'Due'] as $statusKey => $statusLabel)
+        <a href="{{ route('admin.dashboard', $statusKey === 'all' ? [] : ['payment_status' => $statusKey]) }}#payments" class="shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold transition {{ $paymentFilter === $statusKey ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 shadow-sm hover:bg-slate-100' }}">{{ $statusLabel }}</a>
+      @endforeach
+    </div>
+    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      @forelse($paymentResidents as $resident)
+        @php
+          $u = $resident['user']; $b = $resident['billing']; $last = $resident['latest_payment'];
+          $badgeStatus = match($b['status']) { 'paid' => 'paid', 'pending' => 'pending', 'partial' => 'partial', default => 'due' };
+          $cycleStart = $b['period']->copy()->startOfMonth();
+          $cycleEnd = $cycleStart->copy()->addMonthNoOverflow();
+        @endphp
+        <article x-data="{paymentOpen:false,paymentMethod:'cash',paymentAmount:{{ (float) $b['remaining'] }},signing:false,signatureData:'',signatureContext:null,initSignature(){const c=this.$refs.signatureCanvas;if(!c)return;const r=c.getBoundingClientRect(),d=window.devicePixelRatio||1;c.width=r.width*d;c.height=r.height*d;this.signatureContext=c.getContext('2d');this.signatureContext.scale(d,d);this.signatureContext.lineWidth=2.5;this.signatureContext.lineCap='round';this.signatureContext.lineJoin='round';this.signatureContext.strokeStyle='#0f172a';this.signatureData='';},beginSignature(e){const c=this.$refs.signatureCanvas;if(!c||!this.signatureContext)return;e.preventDefault();c.setPointerCapture(e.pointerId);const r=c.getBoundingClientRect();this.signatureContext.beginPath();this.signatureContext.moveTo(e.clientX-r.left,e.clientY-r.top);this.signing=true;},drawSignature(e){if(!this.signing)return;const r=this.$refs.signatureCanvas.getBoundingClientRect();this.signatureContext.lineTo(e.clientX-r.left,e.clientY-r.top);this.signatureContext.stroke();this.signatureData=this.$refs.signatureCanvas.toDataURL('image/png');},endSignature(){this.signing=false;},clearSignature(){const c=this.$refs.signatureCanvas;if(c&&this.signatureContext)this.signatureContext.clearRect(0,0,c.width,c.height);this.signatureData='';}}" x-init="$watch('paymentOpen',open=>{if(open&&paymentMethod==='cash')$nextTick(()=>initSignature())})" class="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0"><h3 class="break-words font-semibold text-slate-900">{{ $u->name }}</h3><p class="mt-1 break-words text-sm text-slate-500">{{ $u->bed?->full_name ?? 'No bed assigned' }}</p></div>
+            <x-badge :status="$badgeStatus" />
           </div>
-        @endif
-      </article>
-    @empty 
-      <p class="rounded-2xl bg-white p-8 text-center text-sm text-slate-500">No payments yet.</p> 
-    @endforelse
+          <p class="mt-3 text-xs text-slate-500">Billing period · {{ $cycleStart->format('M j') }} – {{ $cycleEnd->format('M j, Y') }}</p>
+          <div class="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 text-center">
+            <div><p class="text-[11px] text-slate-500">Rent</p><p class="mt-1 text-sm font-semibold text-slate-900">₱{{ number_format($b['amount'], 2) }}</p></div>
+            <div><p class="text-[11px] text-slate-500">Paid</p><p class="mt-1 text-sm font-semibold text-emerald-700">₱{{ number_format($b['paid_amount'], 2) }}</p></div>
+            <div><p class="text-[11px] text-slate-500">Remaining</p><p class="mt-1 text-sm font-semibold text-slate-900">₱{{ number_format($b['remaining'], 2) }}</p></div>
+          </div>
+          <div class="mt-3 flex items-center justify-between gap-2 text-xs"><span class="text-slate-500">Due {{ $b['due']->format('M j, Y') }}</span>@if($last)<span class="text-slate-500">Latest: {{ ucwords(str_replace('_', ' ', $last->payment_method)) }}</span>@endif</div>
+          @if($b['remaining'] > 0)
+            <div class="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+              <button type="button" @click="paymentMethod='cash';paymentAmount={{ (float) $b['remaining'] }};paymentOpen=true" class="rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Record cash</button>
+              <button type="button" @click="paymentMethod='e_wallet';paymentAmount={{ (float) $b['remaining'] }};paymentOpen=true" class="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50">E-wallet / bank</button>
+            </div>
+          @endif
+          <x-detail-modal title="Record payment" open="paymentOpen">
+            <div class="space-y-4">
+              <div class="rounded-xl bg-slate-50 p-3 text-sm"><p class="font-semibold text-slate-900">{{ $u->name }} · {{ $u->bed?->full_name ?? 'No bed assigned' }}</p><p class="mt-1 text-slate-600">Rent ₱{{ number_format($b['amount'], 2) }} · Paid ₱{{ number_format($b['paid_amount'], 2) }} · Remaining ₱{{ number_format($b['remaining'], 2) }}</p></div>
+              <form method="POST" action="{{ route('admin.tenants.cash', $u) }}" class="space-y-3">
+                @csrf<input type="hidden" name="payment_method" :value="paymentMethod">
+                <label class="block text-sm font-medium text-slate-700">Amount received<div class="mt-1 flex items-center rounded-xl border border-slate-300 px-3 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100"><span class="text-slate-500">₱</span><input name="amount" type="number" min="0.01" max="{{ number_format($b['remaining'], 2, '.', '') }}" step="0.01" x-model.number="paymentAmount" required class="w-full border-0 px-2 focus:ring-0"></div></label>
+                <p class="text-xs text-slate-500">Balance after payment: <strong class="text-slate-800">₱<span x-text="Math.max(0, {{ (float) $b['remaining'] }} - (Number(paymentAmount) || 0)).toFixed(2)"></span></strong></p>
+                <div x-show="paymentMethod==='cash'" x-cloak class="space-y-2">
+                  <div><p class="text-sm font-semibold text-slate-800">Tenant signature</p><p class="text-xs text-slate-500">Ask the tenant to sign to confirm this cash payment.</p></div>
+                  <canvas x-ref="signatureCanvas" @pointerdown="beginSignature($event)" @pointermove="drawSignature($event)" @pointerup="endSignature()" @pointercancel="endSignature()" class="h-32 w-full rounded-xl border border-dashed border-slate-300 bg-white" style="touch-action:none"></canvas>
+                  <input type="hidden" name="tenant_signature" :value="signatureData">
+                  <div class="flex items-center justify-between"><span class="text-xs text-slate-500" x-text="signatureData ? 'Signature captured' : 'Sign above' "></span><button type="button" @click="clearSignature()" class="text-xs font-semibold text-indigo-700 underline">Clear signature</button></div>
+                </div>
+                <label x-show="paymentMethod==='e_wallet'" x-cloak class="block text-sm font-medium text-slate-700">E-wallet / bank reference<input name="gcash_reference" type="text" maxlength="30" :required="paymentMethod==='e_wallet'" class="mt-1 w-full rounded-xl border-slate-300 text-sm" placeholder="Enter transaction reference"></label>
+                <button :disabled="paymentMethod==='cash'&&!signatureData" class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">Save payment</button>
+              </form>
+            </div>
+          </x-detail-modal>
+        </article>
+      @empty
+        <p class="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3">{{ $paymentFilter === 'all' ? 'No residents to show.' : 'No residents match this payment status.' }}</p>
+      @endforelse
+    </div>
   </section>
-
   {{-- ============ MAINTENANCE ============ --}}
   <section x-show="tab==='maintenance'" x-cloak class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
     @forelse($requests as $m)
-      <article x-data="{s:'{{ $m->status }}',busy:false,async set(n){this.busy=true;try{const r=await fetch(BH.base+'/admin/maintenance/{{ $m->id }}',{method:'PATCH',headers:BH.h,body:JSON.stringify({status:n})});if(r.ok)this.s=n}finally{this.busy=false}}}"
-               class="space-y-2 rounded-2xl bg-white p-4 shadow-sm">
+      <article x-data="{s:'{{ $m->status }}',busy:false,detailOpen:false,async set(n){this.busy=true;try{const r=await fetch(BH.base+'/admin/maintenance/{{ $m->id }}',{method:'PATCH',headers:BH.h,body:JSON.stringify({status:n})});if(r.ok)this.s=n}finally{this.busy=false}}}"
+               @click="detailOpen=true" @keydown.enter="detailOpen=true" @keydown.space.prevent="detailOpen=true" role="button" tabindex="0" aria-label="View repair details"
+               class="cursor-pointer space-y-2 rounded-2xl bg-white p-4 shadow-sm transition hover:shadow-md">
         <div class="flex items-start justify-between gap-2">
           <div>
             <p class="font-semibold text-slate-900">{{ \App\Models\MaintenanceRequest::CATEGORIES[$m->issue_category] ?? $m->issue_category }}
             @if($m->urgency==='urgent')<span class="ml-1 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">URGENT</span>@endif</p>
             <p class="text-xs text-slate-500">{{ $m->tenant->name }} · {{ $m->bed?->full_name ?? '—' }} · {{ $m->created_at->diffForHumans() }}</p>
           </div>
-          <span x-show="s==='pending'" class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">Pending</span>
-          <span x-show="s==='in_progress'" x-cloak class="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700">In progress</span>
-          <span x-show="s==='resolved'" x-cloak class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">Resolved</span>
+          <span x-show="s==='pending'" class="shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold italic tracking-wide text-slate-900">Pending</span>
+          <span x-show="s==='in_progress'" x-cloak class="shrink-0 whitespace-nowrap rounded-md bg-sky-700 px-2.5 py-1 text-xs font-semibold tracking-wide text-white shadow-sm">In progress</span>
+          <span x-show="s==='resolved'" x-cloak class="rounded-md bg-emerald-700 px-2.5 py-1 text-xs font-semibold tracking-wide text-white shadow-sm">Resolved</span>
         </div>
         <p class="text-sm text-slate-600">{{ $m->description }}</p>
         @if($m->image)<a href="{{ asset('storage/'.$m->image) }}" target="_blank"><img src="{{ asset('storage/'.$m->image) }}" class="h-28 w-full rounded-xl object-cover" alt="Photo"></a>@endif
-        <div class="flex gap-2 pt-1" :class="busy && 'opacity-50 pointer-events-none'">
+        <div class="flex gap-2 pt-1" :class="busy && 'opacity-50 pointer-events-none'" @click.stop>
           <button x-show="s==='pending'" @click="set('in_progress')" class="flex-1 rounded-lg bg-sky-600 py-2 text-xs font-semibold text-white hover:bg-sky-500">Start work</button>
           <button x-show="s==='in_progress'" x-cloak @click="set('resolved')" class="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-500">Mark resolved</button>
           <button x-show="s==='resolved'" x-cloak @click="set('pending')" class="flex-1 rounded-lg border border-slate-200 py-2 text-xs font-semibold hover:bg-slate-50">Reopen</button>
         </div>
+        <x-detail-modal :title="\App\Models\MaintenanceRequest::CATEGORIES[$m->issue_category] ?? $m->issue_category">
+            <dl class="mt-4 grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+              <div><dt class="text-xs font-medium text-slate-500">Urgency</dt><dd class="mt-1 font-semibold capitalize text-slate-900">{{ $m->urgency }}</dd></div>
+              <div><dt class="text-xs font-medium text-slate-500">Status</dt><dd class="mt-1 font-semibold capitalize text-slate-900" x-text="s.replace('_',' ')"></dd></div>
+              <div><dt class="text-xs font-medium text-slate-500">Tenant</dt><dd class="mt-1 break-words font-semibold text-slate-900">{{ $m->tenant->name }}</dd></div>
+              <div><dt class="text-xs font-medium text-slate-500">Room / bed</dt><dd class="mt-1 font-semibold text-slate-900">{{ $m->bed?->full_name ?? '—' }}</dd></div>
+              <div class="sm:col-span-2"><dt class="text-xs font-medium text-slate-500">Reported</dt><dd class="mt-1 font-semibold text-slate-900">{{ $m->created_at->format('M j, Y · g:i A') }}</dd></div>
+              <div class="sm:col-span-2"><dt class="text-xs font-medium text-slate-500">Full description</dt><dd class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{{ $m->description }}</dd></div>
+              <div class="sm:col-span-2">
+                <dt class="text-xs font-medium text-slate-500">Images</dt>
+                @if($m->image)
+                  <a href="{{ asset('storage/'.$m->image) }}" target="_blank" class="mt-2 block"><img src="{{ asset('storage/'.$m->image) }}" class="max-h-64 w-full rounded-xl border border-slate-200 object-cover" alt="Repair photo"></a>
+                @else
+                  <div class="mt-2 flex min-h-24 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400">No images attached</div>
+                @endif
+              </div>
+            </dl>
+        </x-detail-modal>
       </article>
     @empty 
       <div class="col-span-full rounded-2xl bg-white p-8 text-center text-sm text-slate-500">
@@ -164,58 +229,73 @@
 
   {{-- ============ SETTINGS ============ --}}
   <section x-show="tab==='settings'" x-cloak>
-    <form method="POST" action="{{ route('admin.settings') }}" class="grid gap-4 lg:grid-cols-2">@csrf
-      
-      <div class="space-y-3 rounded-2xl bg-white p-5 shadow-sm">
-        <div class="border-b border-slate-100 pb-2">
-          <p class="font-bold text-slate-900">General Information</p>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Boarding House Name</label>
-          <input name="property_name" value="{{ old('property_name', $settings['property_name'] ?? 'BoardersHub') }}" class="w-full rounded-xl border-slate-300 text-sm">
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Contact Phone</label>
-            <input name="contact_phone" value="{{ old('contact_phone', $settings['contact_phone'] ?? '') }}" placeholder="+63 900 000 0000" class="w-full rounded-xl border-slate-300 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Support Email</label>
-            <input name="contact_email" type="email" value="{{ old('contact_email', $settings['contact_email'] ?? '') }}" placeholder="admin@example.com" class="w-full rounded-xl border-slate-300 text-sm">
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">Currency Symbol</label>
-          <input name="currency_symbol" value="{{ old('currency_symbol', $settings['currency_symbol'] ?? '₱') }}" class="w-24 rounded-xl border-slate-300 text-sm">
-        </div>
-      </div>
-
-      <div class="space-y-3 rounded-2xl bg-white p-5 shadow-sm">
-        <div class="border-b border-slate-100 pb-2">
-          <p class="font-bold text-slate-900">System Preferences</p>
-        </div>
-        <label class="flex items-center gap-3 cursor-pointer py-1">
-          <input type="checkbox" name="auto_remind_overdue" value="1" {{ old('auto_remind_overdue', $settings['auto_remind_overdue'] ?? false) ? 'checked' : '' }} class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-          <span class="text-xs font-medium text-slate-700">Send automatic payment reminders for overdue billing</span>
+    <form method="POST" action="{{ route('admin.settings') }}" class="grid min-w-0 gap-4 lg:grid-cols-2" x-data="{ surcharges: @js(old('device_surcharges', $settings['device_surcharges'])) }">@csrf
+      <section class="min-w-0 space-y-4 rounded-2xl bg-white p-5 shadow-sm">
+        <div><h2 class="font-bold text-slate-900">Rent</h2><p class="mt-1 text-xs text-slate-500">Default rates are used unless a bed has its own rate.</p></div>
+        <label class="block text-sm font-medium text-slate-600">Default monthly rate per bed
+          <input name="rent[default_monthly_rate]" type="number" min="0" step="0.01" required value="{{ old('rent.default_monthly_rate', $settings['rent']['default_monthly_rate']) }}" class="mt-1 w-full rounded-xl border-slate-300 text-sm">
         </label>
-        <label class="flex items-center gap-3 cursor-pointer py-1">
-          <input type="checkbox" name="notify_maintenance" value="1" {{ old('notify_maintenance', $settings['notify_maintenance'] ?? true) ? 'checked' : '' }} class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-          <span class="text-xs font-medium text-slate-700">Send email notification when new repair request is filed</span>
+        <div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+          <label class="block text-sm font-medium text-slate-600">Top bunk rate <span class="font-normal">(optional)</span>
+            <input name="rent[top_bunk_rate]" type="number" min="0" step="0.01" value="{{ old('rent.top_bunk_rate', $settings['rent']['top_bunk_rate']) }}" class="mt-1 w-full rounded-xl border-slate-300 text-sm">
+          </label>
+          <label class="block text-sm font-medium text-slate-600">Bottom bunk rate <span class="font-normal">(optional)</span>
+            <input name="rent[bottom_bunk_rate]" type="number" min="0" step="0.01" value="{{ old('rent.bottom_bunk_rate', $settings['rent']['bottom_bunk_rate']) }}" class="mt-1 w-full rounded-xl border-slate-300 text-sm">
+          </label>
+        </div>
+        <label class="flex cursor-pointer items-center gap-3 text-sm text-slate-700">
+          <input type="checkbox" name="rent[prorate]" value="1" {{ old('rent.prorate', $settings['rent']['prorate']) ? 'checked' : '' }} class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+          <span>Prorate rent when a tenant moves in mid-month</span>
         </label>
-      </div>
+      </section>
 
-      <div class="rounded-2xl bg-white p-5 shadow-sm lg:col-span-2">
-        <p class="mb-3 font-bold text-slate-900">Monthly Rates per Room Bunk</p>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          @foreach($rooms as $room)
-            <label class="text-xs font-medium text-slate-500">Room {{ $room->number }}
-              <input name="rates[{{ $room->id }}]" type="number" min="0" step="0.01" value="{{ $room->monthly_rate }}" class="mt-1 w-full rounded-xl border-slate-300 text-sm font-semibold text-slate-800">
+      <section class="min-w-0 space-y-4 rounded-2xl bg-white p-5 shadow-sm">
+        <div><h2 class="font-bold text-slate-900">Due dates</h2><p class="mt-1 text-xs text-slate-500">These rules determine the tenant payment status.</p></div>
+        <label class="block text-sm font-medium text-slate-600">Grace period before overdue
+          <span class="mt-1 flex items-center gap-2"><input name="due_dates[grace_period_days]" type="number" min="0" max="31" required value="{{ old('due_dates.grace_period_days', $settings['due_dates']['grace_period_days']) }}" class="w-28 rounded-xl border-slate-300 text-sm"><span class="text-sm text-slate-500">days after due date</span></span>
+        </label>
+        <label class="block text-sm font-medium text-slate-600">Show “Due soon”
+          <span class="mt-1 flex items-center gap-2"><input name="due_dates[due_soon_days]" type="number" min="0" max="31" required value="{{ old('due_dates.due_soon_days', $settings['due_dates']['due_soon_days']) }}" class="w-28 rounded-xl border-slate-300 text-sm"><span class="text-sm text-slate-500">days before the due date</span></span>
+        </label>
+      </section>
+
+      <section class="min-w-0 space-y-4 rounded-2xl bg-white p-5 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-2"><div><h2 class="font-bold text-slate-900">Device surcharges</h2><p class="mt-1 text-xs text-slate-500">Set the monthly fee for each device type.</p></div>
+          <button type="button" @click="surcharges.push({name:'',fee:''})" class="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">Add device</button>
+        </div>
+        <template x-for="(item, index) in surcharges" :key="index">
+          <div class="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(5rem,8rem)_auto] items-end gap-2">
+            <label class="min-w-0 text-xs font-medium text-slate-500">Device type
+              <input :name="`device_surcharges[${index}][name]`" x-model="item.name" maxlength="60" placeholder="e.g. Refrigerator" class="mt-1 w-full min-w-0 rounded-xl border-slate-300 text-sm">
             </label>
-          @endforeach
-        </div>
-      </div>
+            <label class="min-w-0 text-xs font-medium text-slate-500">Monthly fee
+              <input :name="`device_surcharges[${index}][fee]`" x-model="item.fee" type="number" min="0" step="0.01" class="mt-1 w-full min-w-0 rounded-xl border-slate-300 text-sm">
+            </label>
+            <button type="button" @click="surcharges.splice(index,1)" aria-label="Remove device surcharge" class="mb-0.5 rounded-lg px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50">Remove</button>
+          </div>
+        </template>
+        <p x-show="surcharges.length===0" class="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">No device surcharges added.</p>
+      </section>
 
-      <button class="rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-500 lg:col-span-2 transition">Save Settings</button>
+      <section class="min-w-0 space-y-4 rounded-2xl bg-white p-5 shadow-sm">
+        <div><h2 class="font-bold text-slate-900">Utility splitting</h2><p class="mt-1 text-xs text-slate-500">Enter each monthly bill and how it should be split.</p></div>
+        @foreach(['electricity' => 'Electricity', 'wifi' => 'Wi-Fi', 'water' => 'Water'] as $utilityKey => $utilityLabel)
+          @php($utility = $settings['utilities'][$utilityKey] ?? ['total' => '0.00', 'split_method' => 'equal'])
+          <div class="grid min-w-0 grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
+            <label class="block text-sm font-medium text-slate-600">{{ $utilityLabel }} monthly total
+              <input name="utilities[{{ $utilityKey }}][total]" type="number" min="0" step="0.01" required value="{{ old("utilities.$utilityKey.total", $utility['total']) }}" class="mt-1 w-full rounded-xl border-slate-300 text-sm">
+            </label>
+            <label class="block text-sm font-medium text-slate-600">Split method
+              <select name="utilities[{{ $utilityKey }}][split_method]" class="mt-1 w-full rounded-xl border-slate-300 text-sm">
+                <option value="equal" {{ old("utilities.$utilityKey.split_method", $utility['split_method']) === 'equal' ? 'selected' : '' }}>Equal per occupant</option>
+                <option value="devices" {{ old("utilities.$utilityKey.split_method", $utility['split_method']) === 'devices' ? 'selected' : '' }}>Weighted by devices</option>
+              </select>
+            </label>
+          </div>
+        @endforeach
+      </section>
+
+      <button class="rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500 lg:col-span-2">Save Settings</button>
     </form>
   </section>
 
@@ -293,9 +373,7 @@
           <template x-if="b.tenant">
             <div class="space-y-2 rounded-xl bg-slate-50 p-3 text-sm">
               <p class="font-semibold" x-text="b.tenant.name"></p>
-              <p class="text-xs text-slate-500"><span x-text="b.tenant.phone || 'No phone'"></span> · due <span x-text="b.tenant.due"></span> · <b x-text="b.tenant.billing.replace('_',' ')"></b></p>
               <div class="flex gap-2">
-                <form method="POST" :action="BH.base+'/admin/tenants/'+b.tenant.id+'/cash'" class="flex-1" onsubmit="return confirm('Mark cash payment received?')"><input type="hidden" name="_token" :value="BH.csrf"><button class="w-full rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white">Cash paid</button></form>
                 <form method="POST" :action="BH.base+'/admin/beds/'+b.id+'/vacate'" class="flex-1" onsubmit="return confirm('Move this tenant out?')"><input type="hidden" name="_token" :value="BH.csrf"><button class="w-full rounded-lg border border-rose-200 py-2 text-xs font-semibold text-rose-600">Move out</button></form>
               </div>
             </div>

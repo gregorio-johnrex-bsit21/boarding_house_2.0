@@ -23,8 +23,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/tenants/{user}/cash', [Admin::class, 'recordCash'])->name('tenants.cash');
         Route::post('/beds/{bed}/assign', [Admin::class, 'assign'])->name('beds.assign');
         Route::post('/beds/{bed}/vacate', [Admin::class, 'vacate'])->name('beds.vacate');
-        Route::post('/payments/{payment}/verify', [Admin::class, 'verifyPayment'])->name('payments.verify');
-        Route::post('/payments/{payment}/reject', [Admin::class, 'rejectPayment'])->name('payments.reject');
         Route::post('/settings', [Admin::class, 'updateSettings'])->name('settings');
         Route::patch('/beds/{bed}/status', [Admin::class, 'updateBedStatus'])->name('beds.status');
         Route::patch('/maintenance/{maintenanceRequest}', [Admin::class, 'updateMaintenance'])->name('maintenance.update');
@@ -32,8 +30,8 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('role:tenant')->prefix('tenant')->name('tenant.')->group(function () {
         Route::get('/', [Tenant::class, 'home'])->name('home');
+        Route::get('/map', [Tenant::class, 'map'])->name('map');
         Route::get('/billing', [Tenant::class, 'billing'])->name('billing');
-        Route::post('/billing', [Tenant::class, 'storePayment'])->name('payments.store');
         Route::get('/maintenance', [Tenant::class, 'maintenance'])->name('maintenance');
         Route::post('/maintenance', [Tenant::class, 'storeMaintenance'])->name('maintenance.store');
     });
