@@ -1,0 +1,9 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # This project is sometimes served from its repository folder in XAMPP.
+    # Keep the web-accessible entry point inside public/ and never execute
+    # application source files such as app/Http/Controllers/*.php directly.
+    RewriteRule ^public($|/) - [L]
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
